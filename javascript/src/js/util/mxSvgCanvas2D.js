@@ -216,11 +216,25 @@ mxSvgCanvas2D.prototype.foOffset = 0;
 mxSvgCanvas2D.prototype.textOffset = 0;
 
 /**
+ * Variable: imageOffset
+ * 
+ * Offset to be used for image elements.
+ */
+mxSvgCanvas2D.prototype.imageOffset = 0;
+
+/**
  * Variable: strokeTolerance
  * 
  * Adds transparent paths for strokes.
  */
 mxSvgCanvas2D.prototype.strokeTolerance = 0;
+
+/**
+ * Variable: minStrokeWidth
+ * 
+ * Minimum stroke width for output.
+ */
+mxSvgCanvas2D.prototype.minStrokeWidth = 1;
 
 /**
  * Variable: refCount
@@ -618,8 +632,7 @@ mxSvgCanvas2D.prototype.addNode = function(filled, stroked)
 		}
 
 		// Adds pointer events
-		if (this.pointerEvents && (node.nodeName != 'path' ||
-			this.path[this.path.length - 1] == this.closeOp))
+		if (this.pointerEvents)
 		{
 			node.setAttribute('pointer-events', this.pointerEventsValue);
 		}
@@ -660,7 +673,8 @@ mxSvgCanvas2D.prototype.updateFill = function()
 	{
 		if (s.gradientColor != null)
 		{
-			var id = this.getSvgGradient(s.fillColor, s.gradientColor, s.gradientFillAlpha, s.gradientAlpha, s.gradientDirection);
+			var id = this.getSvgGradient(String(s.fillColor), String(s.gradientColor),
+				s.gradientFillAlpha, s.gradientAlpha, s.gradientDirection);
 			
 			if (!mxClient.IS_CHROME_APP && !mxClient.IS_IE && !mxClient.IS_IE11 &&
 				!mxClient.IS_EDGE && this.root.ownerDocument == document)
@@ -676,7 +690,7 @@ mxSvgCanvas2D.prototype.updateFill = function()
 		}
 		else
 		{
-			this.node.setAttribute('fill', s.fillColor.toLowerCase());
+			this.node.setAttribute('fill', String(s.fillColor).toLowerCase());
 		}
 	}
 };
@@ -688,7 +702,7 @@ mxSvgCanvas2D.prototype.updateFill = function()
  */
 mxSvgCanvas2D.prototype.getCurrentStrokeWidth = function()
 {
-	return Math.max(1, this.format(this.state.strokeWidth * this.state.scale));
+	return Math.max(this.minStrokeWidth, Math.max(0.01, this.format(this.state.strokeWidth * this.state.scale)));
 };
 
 /**
@@ -700,7 +714,7 @@ mxSvgCanvas2D.prototype.updateStroke = function()
 {
 	var s = this.state;
 
-	this.node.setAttribute('stroke', s.strokeColor.toLowerCase());
+	this.node.setAttribute('stroke', String(s.strokeColor).toLowerCase());
 	
 	if (s.alpha < 1 || s.strokeAlpha < 1)
 	{
@@ -721,7 +735,8 @@ mxSvgCanvas2D.prototype.updateStroke = function()
 	
 	if (s.dashed)
 	{
-		this.node.setAttribute('stroke-dasharray', this.createDashPattern(s.strokeWidth * s.scale));
+		this.node.setAttribute('stroke-dasharray', this.createDashPattern(
+			((s.fixDash) ? 1 : s.strokeWidth) * s.scale));
 	}
 };
 
@@ -985,8 +1000,8 @@ mxSvgCanvas2D.prototype.ellipse = function(x, y, w, h)
 	var s = this.state;
 	var n = this.createElement('ellipse');
 	// No rounding for consistent output with 1.x
-	n.setAttribute('cx', Math.round((x + w / 2 + s.dx) * s.scale));
-	n.setAttribute('cy', Math.round((y + h / 2 + s.dy) * s.scale));
+	n.setAttribute('cx', this.format((x + w / 2 + s.dx) * s.scale));
+	n.setAttribute('cy', this.format((y + h / 2 + s.dy) * s.scale));
 	n.setAttribute('rx', w / 2 * s.scale);
 	n.setAttribute('ry', h / 2 * s.scale);
 	this.node = n;
@@ -1011,8 +1026,8 @@ mxSvgCanvas2D.prototype.image = function(x, y, w, h, src, aspect, flipH, flipV)
 	y += s.dy;
 	
 	var node = this.createElement('image');
-	node.setAttribute('x', this.format(x * s.scale));
-	node.setAttribute('y', this.format(y * s.scale));
+	node.setAttribute('x', this.format(x * s.scale) + this.imageOffset);
+	node.setAttribute('y', this.format(y * s.scale) + this.imageOffset);
 	node.setAttribute('width', this.format(w * s.scale));
 	node.setAttribute('height', this.format(h * s.scale));
 	
@@ -1162,7 +1177,7 @@ mxSvgCanvas2D.prototype.convertHtml = function(val)
  * 
  * Private helper function to create SVG elements
  */
-mxSvgCanvas2D.prototype.createDiv = function(str, align, valign, style, overflow)
+mxSvgCanvas2D.prototype.createDiv = function(str, align, valign, style, overflow, whiteSpace)
 {
 	var s = this.state;
 
@@ -1196,17 +1211,21 @@ mxSvgCanvas2D.prototype.createDiv = function(str, align, valign, style, overflow
 	{
 		style += 'text-align:right;';
 	}
+	else
+	{
+		style += 'text-align:left;';
+	}
 
 	var css = '';
 	
 	if (s.fontBackgroundColor != null)
 	{
-		css += 'background-color:' + s.fontBackgroundColor + ';';
+		css += 'background-color:' + mxUtils.htmlEntities(s.fontBackgroundColor) + ';';
 	}
 	
 	if (s.fontBorderColor != null)
 	{
-		css += 'border:1px solid ' + s.fontBorderColor + ';';
+		css += 'border:1px solid ' + mxUtils.htmlEntities(s.fontBorderColor) + ';';
 	}
 	
 	var val = str;
@@ -1217,6 +1236,13 @@ mxSvgCanvas2D.prototype.createDiv = function(str, align, valign, style, overflow
 		
 		if (overflow != 'fill' && overflow != 'width')
 		{
+			// Workaround for no wrapping in HTML canvas for image
+			// export if the inner HTML contains a DIV with width
+			if (whiteSpace != null)
+			{
+				css += 'white-space:' + whiteSpace + ';';
+			}
+			
 			// Inner div always needed to measure wrapped text
 			val = '<div xmlns="http://www.w3.org/1999/xhtml" style="display:inline-block;text-align:inherit;text-decoration:inherit;' + css + '">' + val + '</div>';
 		}
@@ -1327,7 +1353,7 @@ mxSvgCanvas2D.prototype.updateText = function(x, y, w, h, align, valign, wrap, o
 		var oh = 0;
 		
 		// Padding avoids clipping on border and wrapping for differing font metrics on platforms
-		var padX = 2;
+		var padX = 0;
 		var padY = 2;
 
 		var sizeDiv = div;
@@ -1348,14 +1374,22 @@ mxSvgCanvas2D.prototype.updateText = function(x, y, w, h, align, valign, wrap, o
 				ow = Math.min(ow, w);
 			}
 			
-			div.style.width = ow + 'px';
+			div.style.width = Math.round(ow + 1) + 'px';
+		}
+
+		ow = (group.mxCachedFinalOffsetWidth != null) ? group.mxCachedFinalOffsetWidth : sizeDiv.offsetWidth;
+		oh = (group.mxCachedFinalOffsetHeight != null) ? group.mxCachedFinalOffsetHeight : sizeDiv.offsetHeight;
+		
+		if (this.cacheOffsetSize)
+		{
+			group.mxCachedOffsetWidth = tmp;
+			group.mxCachedFinalOffsetWidth = ow;
+			group.mxCachedFinalOffsetHeight = oh;
 		}
 		
-		ow = ((group.mxCachedFinalOffsetWidth != null) ? group.mxCachedFinalOffsetWidth :
-			sizeDiv.offsetWidth) + padX;
-		oh = ((group.mxCachedFinalOffsetHeight != null) ? group.mxCachedFinalOffsetHeight :
-			sizeDiv.offsetHeight) - 2;
-
+		ow += padX;
+		oh -= 2;
+		
 		if (clip)
 		{
 			oh = Math.min(oh, h);
@@ -1495,7 +1529,7 @@ mxSvgCanvas2D.prototype.text = function(x, y, w, h, str, align, valign, wrap, fo
 			fo.setAttribute('style', 'overflow:visible;');
 			fo.setAttribute('pointer-events', 'all');
 			
-			var div = this.createDiv(str, align, valign, style, overflow);
+			var div = this.createDiv(str, align, valign, style, overflow, (wrap && w > 0) ? 'normal' : null);
 			
 			// Ignores invalid XHTML labels
 			if (div == null)
@@ -1551,7 +1585,7 @@ mxSvgCanvas2D.prototype.text = function(x, y, w, h, str, align, valign, wrap, fo
 					var tmp = div2.offsetWidth;
 					
 					// Workaround for adding padding twice in IE8/IE9 standards mode if label is wrapped
-					var padDx = 0;
+					padDx = 0;
 					
 					// For export, if no wrapping occurs, we add a large padding to make
 					// sure there is no wrapping even if the text metrics are different.

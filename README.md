@@ -1,13 +1,17 @@
 mxgraph
 =======
 
-mxGraph is a fully client side JavaScript diagramming library that uses SVG and HTML for rendering. It is the underlying technology that powers the drawing functionality that you see in [draw.io](https://www.draw.io). The [sources to draw.io](https://github.com/jgraph/draw.io) are also available.
+mxGraph is a fully client side JavaScript diagramming library that uses SVG and HTML for rendering. [draw.io](https://www.draw.io) is an example that extends the functionality of this library. The [sources to draw.io](https://github.com/jgraph/draw.io) are also available.
 
-mxGraph supports IE 9+, Chrome 30+, Firefox 31+, Safari versions actively patched by Apple (6.2.x, 7.1.x, 8.0.x and 9.x at time of writing), Opera 20+, Native Android browser 5.x+, the default browser in the current and previous major iOS versions (e.g. 9.x and 8.x) and Edge 20+.
+Note this is the release repo, only each release is pushed here. The development repo is https://github.com/jgraph/mxgraph2,  submit PRs and issues there.
 
-mxGraph uses no third-party software, it requires no plugins and can be integrated in virtually any framework. Also provided is server-side functionality in Java and .NET for persistence (open and save) functionality, as well as server-side image generation.
+If you want to build something like draw.io, [GraphEditor](https://jgraph.github.io/mxgraph/javascript/examples/grapheditor/www/index.html) is the best example to use as a base.
 
-mxGraph is dual licensed under either the GPL v3 or the [mxGraph Commerical License](https://www.jgraph.com/Licenses/JGraph_Software_Licence.pdf). To use the commercial license, you must license from [JGraph](https://www.jgraph.com/purchase-mxgraph.html) for payment.
+The npm build is [here](https://www.npmjs.com/package/mxgraph)
+
+mxGraph supports IE 11, Chrome 43+, Firefox 45+, Safari 9.1.x, 10.1.x and 11.0.x, Opera 30+, Native Android browser 5.1.x+, the default browser in the current and previous major iOS versions (e.g. 11.x and 10.x) and Edge 31+.
+
+mxGraph uses no third-party software, it requires no plugins and can be integrated in virtually any framework.
 
 Getting Started
 ===============
@@ -17,8 +21,14 @@ In the root folder there is an index.html file that contains links to all resour
 Support
 =======
 
-The is a [mxgraph tag on Stack Overflow](http://stackoverflow.com/questions/tagged/mxgraph) that we try to keep answered. Please ensure your questions adhere to the [SO guidelines](http://stackoverflow.com/help/on-topic), otherwise it will be closed.
+There is a [mxgraph tag on Stack Overflow](http://stackoverflow.com/questions/tagged/mxgraph). Please ensure your questions adhere to the [SO guidelines](http://stackoverflow.com/help/on-topic), otherwise it will be closed.
 
-If you have a support question and you have purchased mxGraph license(s), please use the contact mechanism described in your purchase receipt email.
+License
+=======
 
-If you are evaluating mxGraph commercially, please [contact us](https://www.jgraph.com/contact.html) and we'll arrange support during your evaluation.
+mxGraph is licensed under the Apache 2.0 license. We do not sell any other license, nor do we have an option for paid support.
+
+History
+=======
+
+We created mxGraph in 2005 as a commercial project and it ran through to 2016 that way. Our USP was the support for non-SVG browsers, when that advantage expired we moved onto commercial activity around draw.io. mxGraph is pretty much feature complete, production tested in many large enterprises and stable for many years. We actively fix bugs and make minor improvements since it comprises the base of our draw.io stack.

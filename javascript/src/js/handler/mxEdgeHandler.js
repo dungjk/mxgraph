@@ -37,7 +37,13 @@ function mxEdgeHandler(state)
 		// Handles escape keystrokes
 		this.escapeHandler = mxUtils.bind(this, function(sender, evt)
 		{
+			var dirty = this.index != null;
 			this.reset();
+			
+			if (dirty)
+			{
+				this.graph.cellRenderer.redraw(this.state, false, state.view.isRendering());
+			}
 		});
 		
 		this.state.view.graph.addListener(mxEvent.ESCAPE, this.escapeHandler);
@@ -1139,7 +1145,13 @@ mxEdgeHandler.prototype.getPreviewTerminalState = function(me)
 	else if (!this.graph.isIgnoreTerminalEvent(me.getEvent()))
 	{
 		this.marker.process(me);
-
+		var state = this.marker.getValidState();
+		
+		if (state != null && this.graph.isCellLocked(state.cell))
+		{
+			this.marker.reset();
+		}
+		
 		return this.marker.getValidState();
 	}
 	else
@@ -1475,6 +1487,12 @@ mxEdgeHandler.prototype.mouseMove = function(sender, me)
 				}
 			}
 			
+			if (terminalState != null && this.graph.isCellLocked(terminalState.cell))
+			{
+				terminalState = null;
+				this.marker.reset();
+			}
+			
 			var clone = this.clonePreviewState(this.currentPoint, (terminalState != null) ? terminalState.cell : null);
 			this.updatePreviewState(clone, this.currentPoint, terminalState, me, outline);
 
@@ -1513,6 +1531,8 @@ mxEdgeHandler.prototype.mouseUp = function(sender, me)
 	if (this.index != null && this.marker != null)
 	{
 		var edge = this.state.cell;
+		var index = this.index;
+		this.index = null;
 		
 		// Ignores event if mouse has not been moved
 		if (me.getX() != this.startX || me.getY() != this.startY)
@@ -1529,7 +1549,7 @@ mxEdgeHandler.prototype.mouseUp = function(sender, me)
 					this.graph.validationAlert(this.error);
 				}
 			}
-			else if (this.index <= mxEvent.CUSTOM_HANDLE && this.index > mxEvent.VIRTUAL_HANDLE)
+			else if (index <= mxEvent.CUSTOM_HANDLE && index > mxEvent.VIRTUAL_HANDLE)
 			{
 				if (this.customHandles != null)
 				{
@@ -1538,7 +1558,7 @@ mxEdgeHandler.prototype.mouseUp = function(sender, me)
 					model.beginUpdate();
 					try
 					{
-						this.customHandles[mxEvent.CUSTOM_HANDLE - this.index].execute();
+						this.customHandles[mxEvent.CUSTOM_HANDLE - index].execute();
 					}
 					finally
 					{
@@ -1570,7 +1590,37 @@ mxEdgeHandler.prototype.mouseUp = function(sender, me)
 				
 				if (terminal != null)
 				{
-					edge = this.connect(edge, terminal, this.isSource, clone, me);
+					var model = this.graph.getModel();
+					var parent = model.getParent(edge);
+					
+					model.beginUpdate();
+					try
+					{
+						// Clones and adds the cell
+						if (clone)
+						{
+							var geo = model.getGeometry(edge);
+							var clone = this.graph.cloneCell(edge);
+							model.add(parent, clone, model.getChildCount(parent));
+							
+							if (geo != null)
+							{
+								geo = geo.clone();
+								model.setGeometry(clone, geo);
+							}
+							
+							var other = model.getTerminal(edge, !this.isSource);
+							this.graph.connectCell(clone, other, !this.isSource);
+							
+							edge = clone;
+						}
+						
+						edge = this.connect(edge, terminal, this.isSource, clone, me);
+					}
+					finally
+					{
+						model.endUpdate();
+					}
 				}
 				else if (this.graph.isAllowDanglingEdges())
 				{
@@ -1629,15 +1679,20 @@ mxEdgeHandler.prototype.mouseUp = function(sender, me)
  */
 mxEdgeHandler.prototype.reset = function()
 {
+	if (this.active)
+	{
+		this.refresh();
+	}
+	
 	this.error = null;
 	this.index = null;
 	this.label = null;
 	this.points = null;
 	this.snapPoint = null;
-	this.active = false;
 	this.isLabel = false;
 	this.isSource = false;
 	this.isTarget = false;
+	this.active = false;
 	
 	if (this.livePreview && this.sizers != null)
 	{
@@ -1804,18 +1859,6 @@ mxEdgeHandler.prototype.connect = function(edge, terminal, isSource, isClone, me
 	model.beginUpdate();
 	try
 	{
-		// Clones and adds the cell
-		if (isClone)
-		{
-			var clone = this.graph.cloneCells([edge])[0];
-			model.add(parent, clone, model.getChildCount(parent));
-			
-			var other = model.getTerminal(edge, !isSource);
-			this.graph.connectCell(clone, other, !isSource);
-			
-			edge = clone;
-		}
-
 		var constraint = this.constraintHandler.currentConstraint;
 		
 		if (constraint == null)
@@ -1849,7 +1892,7 @@ mxEdgeHandler.prototype.changeTerminalPoint = function(edge, point, isSource, cl
 		{
 			var parent = model.getParent(edge);
 			var terminal = model.getTerminal(edge, !isSource);
-			edge = this.graph.cloneCells([edge])[0];
+			edge = this.graph.cloneCell(edge);
 			model.add(parent, edge, model.getChildCount(parent));
 			model.setTerminal(edge, terminal, !isSource);
 		}
@@ -1888,7 +1931,7 @@ mxEdgeHandler.prototype.changePoints = function(edge, points, clone)
 			var parent = model.getParent(edge);
 			var source = model.getTerminal(edge, true);
 			var target = model.getTerminal(edge, false);
-			edge = this.graph.cloneCells([edge])[0];
+			edge = this.graph.cloneCell(edge);
 			model.add(parent, edge, model.getChildCount(parent));
 			model.setTerminal(edge, source, true);
 			model.setTerminal(edge, target, false);
@@ -2282,7 +2325,6 @@ mxEdgeHandler.prototype.drawPreview = function()
 		this.shape.isDashed = this.isSelectionDashed();
 		this.shape.stroke = this.getSelectionColor();
 		this.shape.strokewidth = this.getSelectionStrokeWidth() / this.shape.scale / this.shape.scale;
-		this.shape.arrowStrokewidth = this.getSelectionStrokeWidth();
 		this.shape.isShadow = false;
 		this.shape.redraw();
 	}

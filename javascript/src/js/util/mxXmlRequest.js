@@ -310,6 +310,8 @@ mxXmlRequest.prototype.create = function()
  * Send the <request> to the target URL using the specified functions to
  * process the response asychronously.
  * 
+ * Note: Due to technical limitations, onerror is currently ignored.
+ * 
  * Parameters:
  * 
  * onload - Function to be invoked if a successful response was received.
@@ -330,7 +332,7 @@ mxXmlRequest.prototype.send = function(onload, onerror, timeout, ontimeout)
 				if (this.isReady())
 				{
 					onload(this);
-					this.onreadystatechaange = null;
+					this.request.onreadystatechaange = null;
 				}
 			});
 		}
@@ -441,6 +443,7 @@ mxXmlRequest.prototype.simulate = function(doc, target)
 			}
 			
 			var textarea = doc.createElement('textarea');
+			textarea.setAttribute('wrap', 'off');
 			textarea.setAttribute('name', name);
 			mxUtils.write(textarea, value);
 			form.appendChild(textarea);
@@ -449,7 +452,11 @@ mxXmlRequest.prototype.simulate = function(doc, target)
 	
 	doc.body.appendChild(form);
 	form.submit();
-	doc.body.removeChild(form);
+	
+	if (form.parentNode != null)
+	{
+		form.parentNode.removeChild(form);
+	}
 
 	if (old != null)
 	{		

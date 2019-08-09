@@ -4,6 +4,8 @@
 package com.mxgraph.shape;
 
 import java.util.Map;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 import org.w3c.dom.Element;
 import org.w3c.dom.Node;
@@ -22,6 +24,9 @@ import com.mxgraph.view.mxCellState;
  */
 public class mxStencil implements mxIShape
 {
+
+	private static final Logger log = Logger.getLogger(mxStencil.class.getName());
+
 	/**
 	 * Holds the top-level node of the stencil definition.
 	 */
@@ -156,9 +161,12 @@ public class mxStencil implements mxIShape
 		}
 
 		// Note: Overwritten in mxStencil.paintShape (can depend on aspect)
-		double scale = state.getView().getScale();
-		double sw = mxUtils.getDouble(style, mxConstants.STYLE_STROKEWIDTH, 1)
-				* scale;
+		mxRectangle aspect = computeAspect(state, state, direction);
+		double minScale = Math.min(aspect.getWidth(), aspect.getHeight());
+		double sw = strokewidth.equals("inherit") ? mxUtils.getDouble(
+				state.getStyle(), mxConstants.STYLE_STROKEWIDTH, 1)
+				* state.getView().getScale() : Double
+				.parseDouble(strokewidth) * minScale;
 		canvas.setStrokeWidth(sw);
 
 		double alpha = mxUtils.getDouble(style, mxConstants.STYLE_OPACITY, 100) / 100;
@@ -190,7 +198,7 @@ public class mxStencil implements mxIShape
 		// Draws the shadow if the fillColor is not transparent
 		if (mxUtils.isTrue(style, mxConstants.STYLE_SHADOW, false))
 		{
-			drawShadow(canvas, state, rotation, flipH, flipV, state, alpha, fillColor != null);
+			drawShadow(canvas, state, rotation, flipH, flipV, state, alpha, fillColor != null, aspect);
 		}
 
 		canvas.setAlpha(alpha);
@@ -225,8 +233,8 @@ public class mxStencil implements mxIShape
 			}
 
 			// Draws background and foreground of shape
-			drawShape(canvas, state, state, true);
-			drawShape(canvas, state, state, false);
+			drawShape(canvas, state, state, aspect, true);
+			drawShape(canvas, state, state, aspect, false);
 		}
 	}
 	
@@ -234,7 +242,7 @@ public class mxStencil implements mxIShape
 	 * Draws the shadow.
 	 */
 	protected void drawShadow(mxGraphicsCanvas2D canvas, mxCellState state, double rotation, boolean flipH,
-			boolean flipV, mxRectangle bounds, double alpha, boolean filled)
+			boolean flipV, mxRectangle bounds, double alpha, boolean filled, mxRectangle aspect)
 	{
 		// Requires background in generic shape for shadow, looks like only one
 		// fillAndStroke is allowed per current path, try working around that
@@ -258,7 +266,7 @@ public class mxStencil implements mxIShape
 		canvas.translate(offset.getX(), offset.getY());
 		
 		// Returns true if a shadow has been painted (path has been created)
-		if (drawShape(canvas, state, bounds, true))
+		if (drawShape(canvas, state, bounds, aspect, true))
 		{
 			canvas.setAlpha(mxConstants.STENCIL_SHADOW_OPACITY * alpha);
 			// TODO: Implement new shadow
@@ -272,23 +280,14 @@ public class mxStencil implements mxIShape
 	 * Draws this stencil inside the given bounds.
 	 */
 	public boolean drawShape(mxGraphicsCanvas2D canvas, mxCellState state,
-			mxRectangle bounds, boolean background)
+			mxRectangle bounds, mxRectangle aspect, boolean background)
 	{
 		Element elt = (background) ? bgNode : fgNode;
 
 		if (elt != null)
 		{
-			String direction = mxUtils.getString(state.getStyle(),
-					mxConstants.STYLE_DIRECTION, null);
-			mxRectangle aspect = computeAspect(state, bounds, direction);
-			double minScale = Math.min(aspect.getWidth(), aspect.getHeight());
-			double sw = strokewidth.equals("inherit") ? mxUtils.getDouble(
-					state.getStyle(), mxConstants.STYLE_STROKEWIDTH, 1)
-					* state.getView().getScale() : Double
-					.parseDouble(strokewidth) * minScale;
 			lastMoveX = 0;
 			lastMoveY = 0;
-			canvas.setStrokeWidth(sw);
 
 			Node tmp = elt.getFirstChild();
 
@@ -514,8 +513,8 @@ public class mxStencil implements mxIShape
 				double h = getDouble(node, "h") * sy;
 
 				mxRectangle tmp = new mxRectangle(x, y, w, h);
-				stencil.drawShape(canvas, state, tmp, true);
-				stencil.drawShape(canvas, state, tmp, false);
+				stencil.drawShape(canvas, state, tmp, aspect, true);
+				stencil.drawShape(canvas, state, tmp, aspect, false);
 			}
 		}
 		else if (name.equals("fillstroke"))
@@ -532,11 +531,17 @@ public class mxStencil implements mxIShape
 		}
 		else if (name.equals("strokewidth"))
 		{
-			canvas.setStrokeWidth(getDouble(node, "width") * minScale);
+			double s = (getInt(node, "fixed", 0) == 1) ? 1 : minScale;
+			canvas.setStrokeWidth(getDouble(node, "width") * s);
 		}
 		else if (name.equals("dashed"))
 		{
-			canvas.setDashed(node.getAttribute("dashed") == "1");
+			String dashed = node.getAttribute("dashed");
+			
+			if (dashed != null)
+			{
+				canvas.setDashed(dashed.equals("1"));
+			}
 		}
 		else if (name.equals("dashpattern"))
 		{
@@ -614,7 +619,7 @@ public class mxStencil implements mxIShape
 			}
 			catch (NumberFormatException e)
 			{
-				// ignore
+				log.log(Level.SEVERE, "Invalid value for attribute " + attribute + " in " + elt.getTagName(), e);
 			}
 		}
 
@@ -645,7 +650,7 @@ public class mxStencil implements mxIShape
 			}
 			catch (NumberFormatException e)
 			{
-				// ignore
+				log.log(Level.SEVERE, "Invalid value for attribute " + attribute + " in " + elt.getTagName(), e);
 			}
 		}
 

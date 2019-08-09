@@ -5,9 +5,12 @@ package com.mxgraph.util;
 
 import java.io.StringReader;
 import java.io.StringWriter;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
+import javax.xml.parsers.ParserConfigurationException;
 import javax.xml.transform.OutputKeys;
 import javax.xml.transform.Transformer;
 import javax.xml.transform.TransformerFactory;
@@ -24,8 +27,52 @@ import org.xml.sax.InputSource;
  */
 public class mxXmlUtils
 {
+
+	private static final Logger log = Logger.getLogger(mxXmlUtils.class.getName());
+
 	/**
-	 * Returns a new document for the given XML string.
+	 * 
+	 */
+	private static DocumentBuilder documentBuilder = null;
+	
+	/**
+	 * 
+	 */
+	public static DocumentBuilder getDocumentBuilder()
+	{
+		if (documentBuilder == null)
+		{
+			DocumentBuilderFactory dbf = DocumentBuilderFactory.newInstance();
+			dbf.setExpandEntityReferences(false);
+			dbf.setXIncludeAware(false);
+			dbf.setValidating(false);
+
+			try
+			{
+				dbf.setFeature("http://apache.org/xml/features/nonvalidating/load-external-dtd", false);
+				dbf.setFeature("http://xml.org/sax/features/external-parameter-entities", false);
+				dbf.setFeature("http://xml.org/sax/features/external-general-entities", false);
+			}
+			catch (ParserConfigurationException e)
+			{
+				log.log(Level.SEVERE, "Failed to set feature", e);
+			}
+
+			try
+			{
+				documentBuilder = dbf.newDocumentBuilder();
+			}
+			catch (Exception e)
+			{
+				log.log(Level.SEVERE, "Failed to construct a document builder", e);
+			}
+		}
+		
+		return documentBuilder;
+	}
+	
+	/**
+	 * Returns a new document for the given XML string. External entities and DTDs are ignored.
 	 * 
 	 * @param xml
 	 *            String that represents the XML data.
@@ -35,20 +82,16 @@ public class mxXmlUtils
 	{
 		try
 		{
-			DocumentBuilderFactory docBuilderFactory = DocumentBuilderFactory
-					.newInstance();
-			DocumentBuilder docBuilder = docBuilderFactory.newDocumentBuilder();
-
-			return docBuilder.parse(new InputSource(new StringReader(xml)));
+			return getDocumentBuilder().parse(new InputSource(new StringReader(xml)));
 		}
 		catch (Exception e)
 		{
-			e.printStackTrace();
+			log.log(Level.SEVERE, "Failed to parse XML", e);
 		}
-
+		
 		return null;
 	}
-	
+
 	/**
 	 * Returns a string that represents the given node.
 	 * 
@@ -72,7 +115,7 @@ public class mxXmlUtils
 		}
 		catch (Exception e)
 		{
-			// ignore
+			log.log(Level.SEVERE, "Failed to convert XML object to string", e);
 		}
 
 		return "";

@@ -13,6 +13,7 @@ import java.awt.Graphics2D;
 import java.awt.Rectangle;
 import java.awt.RenderingHints;
 import java.awt.font.FontRenderContext;
+import java.awt.font.TextAttribute;
 import java.awt.geom.Line2D;
 import java.awt.geom.Rectangle2D;
 import java.awt.image.BufferedImage;
@@ -30,6 +31,7 @@ import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.Formatter;
 import java.util.Iterator;
@@ -38,11 +40,11 @@ import java.util.Map;
 import java.util.SortedSet;
 import java.util.Stack;
 import java.util.TreeSet;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 import javax.imageio.ImageIO;
 import javax.swing.text.html.HTMLDocument;
-import javax.xml.parsers.DocumentBuilder;
-import javax.xml.parsers.DocumentBuilderFactory;
 
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
@@ -60,6 +62,8 @@ import com.mxgraph.view.mxCellState;
  */
 public class mxUtils
 {
+
+	private static final Logger log = Logger.getLogger(mxUtils.class.getName());
 
 	/**
 	 * True if the machine is a Mac.
@@ -89,7 +93,7 @@ public class mxUtils
 		}
 		catch (Exception e)
 		{
-			// ignore
+			log.log(Level.WARNING, "Failed to initialize font graphics", e);
 		}
 	}
 
@@ -1003,6 +1007,7 @@ public class mxUtils
 		}
 		catch (Exception e)
 		{
+			log.log(Level.SEVERE, "Failed to compute intersection", e);
 			// FIXME: Getting clipbounds sometimes throws an NPE
 		}
 
@@ -1669,7 +1674,10 @@ public class mxUtils
 		swingFontStyle += ((fontStyle & mxConstants.FONT_ITALIC) == mxConstants.FONT_ITALIC) ? Font.ITALIC
 				: Font.PLAIN;
 
-		return new Font(fontFamily, swingFontStyle, (int) (fontSize * scale));
+		Map<TextAttribute, Integer> fontAttributes = (fontStyle & mxConstants.FONT_UNDERLINE) == mxConstants.FONT_UNDERLINE ?
+				Collections.singletonMap(TextAttribute.UNDERLINE, TextAttribute.UNDERLINE_ON) : null;
+		
+		return new Font(fontFamily, swingFontStyle, (int) (fontSize * scale)).deriveFont(fontAttributes);
 	}
 
 	/**
@@ -1845,7 +1853,7 @@ public class mxUtils
 		}
 		catch (NoSuchAlgorithmException ex)
 		{
-			ex.printStackTrace();
+			log.log(Level.SEVERE, "Failed to compute MD5 hash", ex);
 		}
 
 		return result.toString();
@@ -1999,9 +2007,9 @@ public class mxUtils
 					ByteArrayInputStream is = new ByteArrayInputStream(data);
 					img = ImageIO.read(is);
 				}
-				catch (Exception e1)
+				catch (Exception e)
 				{
-					// ignore
+					log.log(Level.SEVERE, "Failed to load a data URI image", e);
 				}
 			}
 			else
@@ -2025,8 +2033,12 @@ public class mxUtils
 					}
 					catch (Exception e1)
 					{
-						e1.printStackTrace();
+						log.log(Level.SEVERE, "Failed to read the image from " + realUrl, e1);
 					}
+				}
+				else
+				{
+					log.log(Level.SEVERE, "Failed to load image from " + url);
 				}
 			}
 		}
@@ -2342,7 +2354,7 @@ public class mxUtils
 	}
 
 	/**
-	 * Returns a new DOM document for the given URI.
+	 * Returns a new DOM document for the given URI. External entities and DTDs are ignored.
 	 * 
 	 * @param uri
 	 *            URI to parse into the document.
@@ -2352,16 +2364,13 @@ public class mxUtils
 	{
 		try
 		{
-			DocumentBuilderFactory docBuilderFactory = DocumentBuilderFactory
-					.newInstance();
-			DocumentBuilder docBuilder = docBuilderFactory.newDocumentBuilder();
-			return docBuilder.parse(uri);
+			return mxXmlUtils.getDocumentBuilder().parse(uri);
 		}
 		catch (Exception e)
 		{
-			e.printStackTrace();
+			log.log(Level.SEVERE, "Failed to load the document from " + uri, e);
 		}
-
+		
 		return null;
 	}
 
@@ -2401,7 +2410,7 @@ public class mxUtils
 				}
 				catch (Exception e)
 				{
-					// ignore
+					log.log(Level.SEVERE, "Failed to eval expression: " + expression, e);
 				}
 			}
 		}
